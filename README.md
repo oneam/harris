@@ -45,7 +45,7 @@ Usage: harris [params] input
 	-o, --output
 		outputs a version of the input with markers on each corner (.png or .m4v formats are supported)
 	--opencv
-		Use the OpenCV mathod to extract Harris coreners rather than the pure C++ method
+		Use the OpenCV method to extract Harris corners rather than the pure C++ method
 	-s, --show
 		displays a window containing a version of the input with markers on each corner
 	--smoothing (value:5)

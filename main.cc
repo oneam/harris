@@ -18,7 +18,7 @@ const cv::String keys =
     "{suppression    |    9 | The size (in pixels) of the non-maximum suppression window                                        }"
     "{k harris_k     | 0.04 | The value of the Harris free parameter                                                            }"
     "{threshold      |  0.5 | The Harris response suppression threshold defined as a ratio of the maximum response value        }"
-    "{opencv         |      | Use the OpenCV mathod to extract Harris coreners rather than the pure C++ method                  }"
+    "{opencv         |      | Use the OpenCV algorithm rather than the pure C++ method                                          }"
     ;
 
 using namespace harris;
