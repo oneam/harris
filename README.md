@@ -6,8 +6,8 @@ This repo contains an example of the Harris corner detection algorithm implement
 
 ### OpenCV
 
-(OpenCV)[https://opencv.org/] is used as a reference implementation as well as to load images and videos for processing.
-CMake will look for OpenCV in standard install locations (see (OpenCV Cmake Docs)[https://docs.opencv.org/3.4.5/db/df5/tutorial_linux_gcc_cmake.html] for more info)
+[OpenCV](https://opencv.org/) is used as a reference implementation as well as to load images and videos for processing.
+CMake will look for OpenCV in standard install locations (see [OpenCV Cmake Docs](https://docs.opencv.org/3.4.5/db/df5/tutorial_linux_gcc_cmake.html) for more info)
 
 ### Googletest
 
@@ -15,13 +15,13 @@ Googletest is used for unit testing. It is referenced via gitmodule so cloning t
 
 ### OpenCL
 
-(OpenCL)[https://www.khronos.org/opencl/] is used for the OpenCL implementation of the algorithm.
-CMake should find OpenCL automatically from a standard install location (see (CMake FindOpenCL Docs)[https://cmake.org/cmake/help/latest/module/FindOpenCL.html] for more info)
+[OpenCL](https://www.khronos.org/opencl/) is used for the OpenCL implementation of the algorithm.
+CMake should find OpenCL automatically from a standard install location (see [CMake FindOpenCL Docs](https://cmake.org/cmake/help/latest/module/FindOpenCL.html) for more info)
 
 ### OpenMP (optional)
 
-If found, the build will attempt to use (OpenMP)[https://www.openmp.org/] to accelerate teh pure C++ implementation
-CMake should find OpenMP automatically from a standard install location (see (CMake FindOpenMP Docs)[https://cmake.org/cmake/help/latest/module/FindOpenMP.html] for more info)
+If found, the build will attempt to use [OpenMP](https://www.openmp.org/) to accelerate teh pure C++ implementation
+CMake should find OpenMP automatically from a standard install location (see [CMake FindOpenMP Docs](https://cmake.org/cmake/help/latest/module/FindOpenMP.html) for more info)
 
 ## Build Instructions
 
