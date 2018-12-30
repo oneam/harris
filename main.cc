@@ -1,12 +1,11 @@
 #include <functional>
 #include <iostream>
+#include <memory>
 
 #include "opencv2/opencv.hpp"
+#include "harris_cpp.h"
 #include "harris_opencv.h"
-
-#include "image.h"
-#include "image_conversion.h"
-#include "harris_corner_detector.h"
+#include "harris_opencl.h"
 
 const cv::String keys =
     "{help h usage ? |      | print this message                                                                                }"
@@ -14,20 +13,15 @@ const cv::String keys =
     "{o output       |      | outputs a version of the input with markers on each corner (.png or .m4v formats are supported)   }"
     "{s show         |      | displays a window containing a version of the input with markers on each corner                   }"
     "{smoothing      |    5 | The size (in pixels) of the gaussian smoothing kernel. This must be an odd number                 }"
-    "{structure      |    9 | The size (in pixels) of the window used to define the structure tensor of each pixel              }"
+    "{structure      |    5 | The size (in pixels) of the window used to define the structure tensor of each pixel              }"
     "{suppression    |    9 | The size (in pixels) of the non-maximum suppression window                                        }"
     "{k harris_k     | 0.04 | The value of the Harris free parameter                                                            }"
     "{threshold      |  0.5 | The Harris response suppression threshold defined as a ratio of the maximum response value        }"
     "{opencv         |      | Use the OpenCV algorithm rather than the pure C++ method                                          }"
+    "{opencl         |      | Use the OpenCL algorithm rather than the pure C++ method                                          }"
     ;
 
 using namespace harris;
-
-// Converts an Image<Float> to an OpenCV matrix, useful for displaying by OpenCV.
-void ToMat(const Image<float>& src, cv::Mat& dest) {
-    dest.create(src.height(), src.width(), CV_32F);
-    std::memmove(dest.data, src.data(), src.stride() * src.height());
-}
 
 // Measures the time taken by a lambda function in ms
 double MeasureTimeMs(std::function<void()> func) {
@@ -44,29 +38,14 @@ double MeasureTimeMs(std::function<void()> func) {
         return time_in_ms;
 }
 
-// Runs the pure C++ Harris corner detector given an CV_8UC4 OpenCV matrix image
-void RunHarrisCpp(const cv::Mat& input_mat, cv::Mat& corner_mat, int smoothing_size = 5, int structure_size = 5, float harris_k = 0.04, float threshold_ratio = 0.5, int suppression_size = 9) {
-    if(smoothing_size <= 0 || smoothing_size % 2 == 0) throw std::invalid_argument("sobel_size must be a positive odd number");
-    if(structure_size <= 0 || structure_size % 2 == 0) throw std::invalid_argument("structure_size must be a positive odd number");
-    if(suppression_size <= 0 || suppression_size % 2 == 0) throw std::invalid_argument("suppression_size must be a positive odd number");
-    if(harris_k <= 0) throw std::invalid_argument("harris_k must be positive");
-    if(threshold_ratio < 0 || threshold_ratio > 1) throw std::invalid_argument("threshold_ratio must be between 0 and 1");
-    if (input_mat.type() != CV_8UC4) throw std::invalid_argument("This method only works with ARGB32 images");
-
-    const auto color_img = Image<Argb32>(input_mat.data, input_mat.cols, input_mat.rows, input_mat.step[0]);
-    const auto float_img = ToFloat(color_img);
-    const auto harris_img = HarrisCorners(float_img, smoothing_size, structure_size, harris_k, threshold_ratio, suppression_size);
-    ToMat(harris_img, corner_mat);
-}
-
 // Takes a Harris corner matrix and puts rectangles at each point on the corresponding image matrix
-void HighlightCorners(cv::Mat corners, cv::Mat image, int block_size = 5) {
+void HighlightCorners(Image<float> corners, cv::Mat image, int block_size = 5) {
     const auto half_block = block_size / 2;
-    for (auto row = 0; row < corners.rows; ++row) {
-        auto corner_row = corners.ptr<float>(row);
-        for (auto col = 0; col < corners.cols; ++col) {
+    for (auto row = 0; row < corners.width(); ++row) {
+        auto corner_row = corners.RowPtr(row);
+        for (auto col = 0; col < corners.height(); ++col) {
             if (corner_row[col] <= 0.0f) continue;
-            cv::rectangle(image, cv::Rect(col - half_block, row - half_block, block_size, block_size), cv::Scalar(0, 0, 255), 2);
+            cv::rectangle(image, cv::Rect(col - half_block, row - half_block, block_size, block_size), cv::Scalar(0, 0, 255), 1);
         }
     }
 }
@@ -91,6 +70,7 @@ int main(int argc, char* argv[]) {
     // Extract command line parameters
     auto show_enabled = parser.has("show");
     auto use_opencv = parser.has("opencv");
+    auto use_opencl = parser.has("opencl");
     auto smoothing_size = parser.get<int>("smoothing");
     auto structure_size = parser.get<int>("structure");
     auto suppression_size = parser.get<int>("suppression");
@@ -112,6 +92,16 @@ int main(int argc, char* argv[]) {
         return 2;
     }
 
+    // Create the appropriate harris algorithm
+    std::shared_ptr<HarrisBase> harris;
+    if (use_opencv) {
+        harris = std::make_shared<HarrisOpenCV>(smoothing_size, structure_size, harris_k, threshold_ratio, suppression_size);
+    } else if (use_opencl) {
+        harris = std::make_shared<HarrisOpenCL>(smoothing_size, structure_size, harris_k, threshold_ratio, suppression_size);
+    } else {
+        harris = std::make_shared<HarrisCpp>(smoothing_size, structure_size, harris_k, threshold_ratio, suppression_size);
+    }
+
     auto total_time_ms = 0.0;
     auto num_frames = 0.0;
 
@@ -124,14 +114,9 @@ int main(int argc, char* argv[]) {
         }
 
         // Run Harris corner detection
-        cv::Mat corners;
-        const auto time_in_ms = MeasureTimeMs([&]() {
-            if (use_opencv) {
-                RunHarrisOpenCV(input_image, corners, smoothing_size, structure_size, harris_k, threshold_ratio, suppression_size);
-            } else {
-                RunHarrisCpp(input_image, corners, smoothing_size, structure_size, harris_k, threshold_ratio, suppression_size);
-            }
-        });
+        const Image<Argb32> input(input_image.data, input_image.cols, input_image.rows, input_image.step[0]);
+        Image<float> corners;
+        const auto time_in_ms = MeasureTimeMs([&]() { corners = harris->FindCorners(input); });
 
         // Record the time
         total_time_ms += time_in_ms;
