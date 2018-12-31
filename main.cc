@@ -41,9 +41,9 @@ double MeasureTimeMs(std::function<void()> func) {
 // Takes a Harris corner matrix and puts rectangles at each point on the corresponding image matrix
 void HighlightCorners(Image<float> corners, cv::Mat image, int block_size = 5) {
     const auto half_block = block_size / 2;
-    for (auto row = 0; row < corners.width(); ++row) {
+    for (auto row = 0; row < corners.height(); ++row) {
         auto corner_row = corners.RowPtr(row);
-        for (auto col = 0; col < corners.height(); ++col) {
+        for (auto col = 0; col < corners.width(); ++col) {
             if (corner_row[col] <= 0.0f) continue;
             cv::rectangle(image, cv::Rect(col - half_block, row - half_block, block_size, block_size), cv::Scalar(0, 0, 255), 1);
         }

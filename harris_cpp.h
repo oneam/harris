@@ -15,7 +15,7 @@ public:
 
     HarrisCpp(int smoothing_size = 5, int structure_size = 5, float harris_k = 0.04, float threshold_ratio = 0.5, int suppression_size = 9) :
         HarrisBase(smoothing_size, structure_size, harris_k, threshold_ratio, suppression_size),
-        gaussian_kernel_(GaussianKernel(1.0f, smoothing_size)), // TODO: The sigma value could be derived from the size
+        gaussian_kernel_(GaussianKernel(smoothing_size)),
         diff_x_(3, 1, {1.f,  0.f, -1.f}), // The x differentiation operator from Sobel without the gaussian smoothing
         diff_y_(1, 3, {1.f,  0.f, -1.f}) { // The y differentiation operator from Sobel without the gaussian smoothing
     }
@@ -30,17 +30,17 @@ public:
     // Runs the pure C++ Harris corner detector
     Image<float> FindCorners(const Image<float>& image) override {
         // Compute the structure tensor image
-        const auto s = StructureTensorImage(image);
+        const auto structure_tensor = StructureTensorImage(image);
 
         // Compute the Harris response
-        const auto r = Map<float, StructureTensor>(s, [k = k_](StructureTensor s) { return (s.xx * s.yy - s.xy * s.xy) - k * (s.xx + s.yy) * (s.xx + s.yy); });
+        const auto response = Map<float>(structure_tensor, [k = k_](StructureTensor s) { return (s.xx * s.yy - s.xy * s.xy) - k * (s.xx + s.yy) * (s.xx + s.yy); });
 
         // Find the maximum response value
-        const auto max_r = Reduce<float>(r, 0.0f, [](float acc, float p) { return std::max(acc, p); });
+        const auto max_r = Reduce<float>(response, 0.0f, [](float acc, float p) { return std::max(acc, p); });
 
         // Run non-maximal suppression with thresholding. The threshold is some fraction of the maximum response.
         const auto threshold = max_r * threshold_ratio_;
-        const auto corners = NonMaxSuppression(r, threshold);
+        const auto corners = NonMaxSuppression(response, threshold);
 
         return corners;
     }
@@ -51,9 +51,12 @@ private:
     FilterKernel diff_y_;
 
     // Creates a normalized gaussian filter kernel with the given size and sigma value.
-    static FilterKernel GaussianKernel(float sigma, int size) {
+    static FilterKernel GaussianKernel(int size) {
         if (size <= 0 || size % 2 == 0) throw std::invalid_argument("size parameter must be a positive odd number");
         std::vector<float> kernel_values;
+
+        // Define sigma such that the ~95% percent of the curve fits in the window (https://en.wikipedia.org/wiki/68%E2%80%9395%E2%80%9399.7_rule)
+        const auto sigma = static_cast<float>(size - 1) / 4.0f;
 
         // Define gaussian value for each point in the kernel
         float sum = 0.0f;
