@@ -130,13 +130,10 @@ types. Template type deduction did not work for `std::function<>` types and the 
 
 ## OpenCL
 
-This is my first project using OpenCL so it looks very much like a sample program pulled from the Kronos pages.
-It's also somewhat monolithic, which is another artifact of my lack of time spent working with OpenCL.
+This is my first OpenCL project, so I may have made some design decisions that don't match standard practices.
 
-I didn't use the C++ binding for OpenCL for 3 reasons:
-1. I didn't initially hae the source (I developed this on MacOS and it doesn't include cl.hpp by default)
-2. Most of the examples and documentation I can find online works with the C API. It was easier to learn the concepts using that API.
-3. The cl.hpp from OpenCL 1.2 does not follow all of the standard practices I generally use in C++. I would modify the API slightly to be simpler and more modern.
+I decided to use the C++ binding for OpenCL as it did automatic releasing in order to make the code a little cleaner.
+I used a local version of cl.hpp since my development environmment didn't have it available.
 
 The implementation of Max value reduction is not my favorite. If I had more time I would see if I could optimize it more. My assumption is that there is an optimal size for work-items that is bigger than one pixel but smaller than one row. I didn't spend enough time trying to find that optimal size.
 

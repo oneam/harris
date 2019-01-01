@@ -40,7 +40,6 @@ public:
 
         // Run non-maximal suppression with thresholding. The threshold is some fraction of the maximum response.
         const auto threshold = max_r * threshold_ratio_;
-
         const auto corners = NonMaxSuppression(response, threshold);
 
         return corners;
