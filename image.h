@@ -47,16 +47,16 @@ struct Argb32 {
 struct StructureTensor {
 
     // Creates an structure tensor with values 0
-    StructureTensor() : xx(0), xy(0), yy(0) {
+    StructureTensor() : xx(0), yy(0), xy(0) {
     }
 
     // Creates an structure tensor using floating point values
-    StructureTensor(float s_xx, float s_xy, float s_yy) : xx(s_xx), xy(s_xy), yy(s_yy) {
+    StructureTensor(float s_xx, float s_yy, float s_xy) : xx(s_xx), yy(s_yy), xy(s_xy) {
     }
 
     float xx;
-    float xy;
     float yy;
+    float xy;
 };
 
 // Templated image type.

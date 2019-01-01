@@ -45,6 +45,16 @@ public:
     int width() const { return width_; }
     int height() const { return height_; }
 
+    // Const data accessor.
+    // This will be a buffer with size at least height*width bytes organized in raster-scan order.
+    // (i.e. each pixel is indexed at data()[y * width + x])
+    const float* data() const { return data_.data(); }
+
+    // Non-const data accessor.
+    // This will be a buffer with size at least height*width bytes organized in raster-scan order.
+    // (i.e. each pixel is indexed at data()[y * width + x])
+    float* data() { return data_.data(); }
+
     // Const kernel value accessor.
     // Each row will be width langth and can be accessed via row_ptr[x]
     const float* RowPtr(int y) const { return data_.data() + y * width_; }
@@ -90,6 +100,35 @@ Image<float> Filter2d(const Image<float>& src, const FilterKernel& kernel) {
     }
 
     return dest;
+}
+
+// Creates a normalized gaussian filter kernel with the given size.
+// The signma value for the filter is derived from the size such that >95% of the volume of the shape is contained within the filter
+FilterKernel GaussianKernel(int size) {
+    if (size <= 0 || size % 2 == 0) throw std::invalid_argument("size parameter must be a positive odd number");
+    std::vector<float> kernel_values;
+
+    // Define sigma such that the ~95% percent of the curve fits in the window (https://en.wikipedia.org/wiki/68%E2%80%9395%E2%80%9399.7_rule)
+    const auto sigma = static_cast<float>(size - 1) / 4.0f;
+
+    // Define gaussian value for each point in the kernel
+    float sum = 0.0f;
+    int offset = size / 2;
+    for(auto y=0; y < size; ++y)
+    for(auto x=0; x < size; ++x) {
+        auto x_f = static_cast<float>(x - offset);
+        auto y_f = static_cast<float>(y - offset);
+        auto value = std::exp(-(x_f * x_f + y_f * y_f) / (2.0f * sigma * sigma));
+        sum += value;
+        kernel_values.push_back(value);
+    }
+
+    // Normalize the kernel
+    for(auto& value : kernel_values) {
+        value /= sum;
+    }
+
+    return FilterKernel(size, size, std::move(kernel_values));
 }
 
 }

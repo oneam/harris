@@ -1,10 +1,10 @@
 __constant sampler_t reflect_sampler = CLK_NORMALIZED_COORDS_FALSE | CLK_ADDRESS_MIRRORED_REPEAT | CLK_FILTER_NEAREST;
 __constant sampler_t clamp_sampler = CLK_NORMALIZED_COORDS_FALSE | CLK_ADDRESS_CLAMP_TO_EDGE | CLK_FILTER_NEAREST;
 
-
+// Converts ARGB image into a greyscale image
 __kernel void Argb32ToFloat (
-	__read_only image2d_t src,
-	__write_only image2d_t dest) {
+    __read_only image2d_t src,
+    __write_only image2d_t dest) {
     const int2 pos = {get_global_id(0), get_global_id(1)};
     const float4 in = read_imagef(src, clamp_sampler, pos);
     const float4 out;
@@ -12,10 +12,11 @@ __kernel void Argb32ToFloat (
     write_imagef(dest, pos, out);
 }
 
+// Runs a gaussian smoothing kernel over an image
 __kernel void Smoothing (
-	__read_only image2d_t src,
-	__constant float* filterWeights,
-	__write_only image2d_t dest) {
+    __read_only image2d_t src,
+    __constant float* filterWeights,
+    __write_only image2d_t dest) {
 
     const int2 pos = {get_global_id(0), get_global_id(1)};
 
@@ -31,61 +32,67 @@ __kernel void Smoothing (
     write_imagef(dest, (int2)(pos.x, pos.y), sum);
 }
 
+// Computes dx image
 __kernel void DiffX (
-	__read_only image2d_t src,
-	__write_only image2d_t dest) {
+    __read_only image2d_t src,
+    __write_only image2d_t dest) {
 
     const int2 pos = {get_global_id(0), get_global_id(1)};
     float4 sum = read_imagef(src, reflect_sampler, (int2)(pos.x-1,pos.y)) - read_imagef(src, reflect_sampler, (int2)(pos.x+1,pos.y));
     write_imagef(dest, (int2)(pos.x, pos.y), sum);
 }
 
+// Computes dy image
 __kernel void DiffY (
-	__read_only image2d_t src,
-	__write_only image2d_t dest) {
+    __read_only image2d_t src,
+    __write_only image2d_t dest) {
 
     const int2 pos = {get_global_id(0), get_global_id(1)};
     float4 sum = read_imagef(src, reflect_sampler, (int2)(pos.x,pos.y-1)) - read_imagef(src, reflect_sampler, (int2)(pos.x,pos.y+1));
     write_imagef (dest, (int2)(pos.x, pos.y), sum);
 }
 
+// Computes the structure tensor image from dx and dy images
 __kernel void Structure (
-	__read_only image2d_t i_x,
-	__read_only image2d_t i_y,
-	__write_only image2d_t dest) {
+    __read_only image2d_t i_x,
+    __read_only image2d_t i_y,
+    __write_only image2d_t dest) {
 
     const int2 pos = {get_global_id(0), get_global_id(1)};
     float4 s = (float4)(0.0f);
 
-    for (int y = -HALF_STRUCTURE; y <= HALF_STRUCTURE; y++) {
+    for (int y = -HALF_STRUCTURE; y <= HALF_STRUCTURE; ++y) {
         for (int x = -HALF_STRUCTURE; x <= HALF_STRUCTURE; ++x) {
-            const float s_x = read_imagef(i_x, reflect_sampler, pos + (int2)(x,y)).x;
-            const float s_y = read_imagef(i_y, reflect_sampler, pos + (int2)(x,y)).x;
+            const int2 window_pos = {pos.x + x, pos.y + y};
+            const float s_x = read_imagef(i_x, reflect_sampler, window_pos).x;
+            const float s_y = read_imagef(i_y, reflect_sampler, window_pos).x;
             s.x += s_x * s_x;
-            s.y += s_x * s_y;
-            s.z += s_y * s_y;
+            s.y += s_y * s_y;
+            s.z += s_x * s_y;
         }
     }
 
     write_imagef(dest, pos, s);
 }
 
+// Computes the Harris response from the structure tensor image
 __kernel void Response (
-	__read_only image2d_t src,
-	__write_only image2d_t dest) {
+    __read_only image2d_t src,
+    __write_only image2d_t dest) {
 
     const int2 pos = {get_global_id(0), get_global_id(1)};
 
     const float4 s = read_imagef(src, reflect_sampler, pos);
     const float4 r;
-    r.x = (s.x * s.z - s.y * s.y) - HARRIS_K * (s.x + s.z) * (s.x + s.z);
+    r.x = (s.x * s.y - s.z * s.z) - HARRIS_K * (s.x + s.y) * (s.x + s.y);
 
     write_imagef(dest, pos, r);
 }
 
-__kernel void Max (
-	__read_only image2d_t src,
-    __write_only image1d_t max_values) {
+// Find the max value of each row and places it in a row_max_array
+__kernel void RowMax (
+    __read_only image2d_t src,
+    __global float* row_max_values) {
 
     const int row = get_global_id(0);
     const int width = get_image_width(src);
@@ -97,16 +104,32 @@ __kernel void Max (
         row_max = max(s.x, row_max);
     }
 
-    write_imagef(max_values, row, row_max);
+    row_max_values[row] = row_max;
 }
 
-__kernel void NonMaxSuppression (
-	__read_only image2d_t src,
-    float threshold,
-	__write_only image2d_t dest) {
+// Finds the max value of an array (Only useful for smallish arrays)
+__kernel void Max (
+    int length,
+    __global float* row_max_values) {
 
+    float row_max = 0.0f;
+
+    for (int i = 0; i < length; ++i) {
+        row_max = max(row_max_values[i], row_max);
+    }
+
+    row_max_values[0] = row_max;
+}
+
+// Runs non-maximal suppression with a global minimum threshold
+__kernel void NonMaxSuppression (
+    __read_only image2d_t src,
+    __constant float* src_max,
+    __write_only image2d_t dest) {
+
+    float threshold = src_max[0] * THRESHOLD_RATIO;
     const int2 pos = {get_global_id(0), get_global_id(1)};
-    const float4 max = read_imagef(src, reflect_sampler, pos);
+    const float4 max = read_imagef(src, clamp_sampler, pos);
 
     if (max.x < threshold) {
         write_imagef(dest, pos, (float4)0.0f);

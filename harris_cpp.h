@@ -40,6 +40,7 @@ public:
 
         // Run non-maximal suppression with thresholding. The threshold is some fraction of the maximum response.
         const auto threshold = max_r * threshold_ratio_;
+
         const auto corners = NonMaxSuppression(response, threshold);
 
         return corners;
@@ -49,34 +50,6 @@ private:
     FilterKernel gaussian_kernel_;
     FilterKernel diff_x_;
     FilterKernel diff_y_;
-
-    // Creates a normalized gaussian filter kernel with the given size and sigma value.
-    static FilterKernel GaussianKernel(int size) {
-        if (size <= 0 || size % 2 == 0) throw std::invalid_argument("size parameter must be a positive odd number");
-        std::vector<float> kernel_values;
-
-        // Define sigma such that the ~95% percent of the curve fits in the window (https://en.wikipedia.org/wiki/68%E2%80%9395%E2%80%9399.7_rule)
-        const auto sigma = static_cast<float>(size - 1) / 4.0f;
-
-        // Define gaussian value for each point in the kernel
-        float sum = 0.0f;
-        int offset = size / 2;
-        for(auto y=0; y < size; ++y)
-        for(auto x=0; x < size; ++x) {
-            auto x_f = static_cast<float>(x - offset);
-            auto y_f = static_cast<float>(y - offset);
-            auto value = std::exp(-(x_f * x_f + y_f * y_f) / (2.0f * sigma * sigma));
-            sum += value;
-            kernel_values.push_back(value);
-        }
-
-        // Normalize the kernel
-        for(auto& value : kernel_values) {
-            value /= sum;
-        }
-
-        return FilterKernel(size, size, std::move(kernel_values));
-    }
 
     // Computes the structure tensor image for a given image.
     Image<StructureTensor> StructureTensorImage(const Image<float>& src) {
@@ -93,8 +66,8 @@ private:
                 Range range(p.x - half_window, p.y - half_window, p.x + half_window, p.y + half_window);
                 return ReduceRange<StructureTensor>(i_x, i_y, range, StructureTensor(), [](StructureTensor s, float s_x, float s_y) {
                     s.xx += s_x * s_x;
-                    s.xy += s_x * s_y;
                     s.yy += s_y * s_y;
+                    s.xy += s_x * s_y;
                     return s;
                 });
             });
