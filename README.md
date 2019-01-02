@@ -1,5 +1,7 @@
 # Harris Corners
 
+[![Build Status](https://travis-ci.org/oneam/harris.svg)](https://travis-ci.org/oneam/harris)
+
 This repo contains an example of the Harris corner detection algorithm implemented in pure C++.
 
 ## Prerequisites
@@ -28,6 +30,7 @@ CMake should find OpenMP automatically from a standard install location (see [CM
 The project can be built using CMake version 3.11 or higher. To build the project, open a command prompt in the repo top level and run:
 
 ```
+cmake .
 cmake --build .
 ```
 

@@ -13,5 +13,6 @@ addons:
     - opencv
 
 script:
+  - cmake .
   - cmake --build .
   - ./unitTests
