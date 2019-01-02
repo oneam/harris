@@ -101,7 +101,7 @@ Both pure C++ and OpenCL implenetations were run against the aruco.m4v file incl
 
 | Method | Total Time | Average time per frame |
 |--------|------------|------------------------|
-| OpenCL | 12.0862 s  | 57.8289 ms             |
+| OpenCL | 10.9069 s  | 52.1862 ms             |
 | C++    | 158.245 s  | 757.154 ms             |
 
 ## Implementation Notes
@@ -157,6 +157,8 @@ My assumption is that there is an optimal size for work-items that is bigger tha
 
 If I had more time I would implement a method to cascade the enqueue calls so that the the events are still coordinated but the code is less redundant.
 I have an idea how, but haven't found time to implement it.
+
+I couldn't keep the CPU version of the code working on my system. It kept dying with a strange error code "Illegal Instruction: 4" and Google was only vaguely helpful.
 
 ## OpenCV
 

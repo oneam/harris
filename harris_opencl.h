@@ -77,13 +77,12 @@ public:
         const auto width = static_cast<size_t>(image.width());
         const auto height = static_cast<size_t>(image.height());
 
-
         try
         {
             cl::Image2D argb_image(
                 context_, 
                 CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, 
-                cl::ImageFormat{ CL_RGBA, CL_UNSIGNED_INT8 },
+                cl::ImageFormat{ CL_RGBA, CL_UNORM_INT8 },
                 width,
                 height,
                 image.stride(),
@@ -178,7 +177,7 @@ public:
             queue_.enqueueNDRangeKernel(
                 diff_y_kernel,
                 cl::NullRange,
-                cl::NDRange{ width, height},
+                cl::NDRange{ width, height },
                 cl::NullRange,
                 &diff_y_prereqs,
                 &diff_y_complete);
@@ -188,7 +187,7 @@ public:
             cl::Image2D structure_image(
                 context_, 
                 CL_MEM_READ_WRITE, 
-                float_format_,
+                cl::ImageFormat{ CL_RGBA, CL_FLOAT },
                 width,
                 height);
 
@@ -223,7 +222,7 @@ public:
             queue_.enqueueNDRangeKernel(
                 response_kernel,
                 cl::NullRange,
-                cl::NDRange{ width, height},
+                cl::NDRange{ width, height },
                 cl::NullRange,
                 &response_prereqs,
                 &response_complete);
@@ -263,15 +262,12 @@ public:
 
             cl::Kernel suppression_kernel(program_, "NonMaxSuppression");
 
-            Image<float> corners(image.width(), image.height());
             cl::Image2D corner_image(
                 context_,
-                CL_MEM_WRITE_ONLY | CL_MEM_USE_HOST_PTR,
+                CL_MEM_READ_WRITE,
                 float_format_,
                 width,
-                height,
-                image.stride(),
-                const_cast<uint8_t*>(image.data()));
+                height);
 
             suppression_kernel.setArg(0, response_image);
             suppression_kernel.setArg(1, row_max_buffer);
@@ -286,6 +282,18 @@ public:
                 cl::NullRange,
                 &suppression_prereqs,
                 &suppression_complete);
+
+            Image<float> corners(width, height);
+            std::vector<cl::Event> read_prereqs({ suppression_complete });
+            queue_.enqueueReadImage(
+                corner_image,
+                CL_TRUE,
+                sizes({}),
+                sizes({ width, height, 1 }),
+                corners.stride(),
+                0,
+                corners.data(),
+                &read_prereqs);
 
             return corners;
         }

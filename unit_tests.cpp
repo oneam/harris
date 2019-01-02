@@ -20,10 +20,12 @@ void CheckCorners(const Image<float>& output) {
         for(auto col = 0; col < output.width(); ++col) {
             const auto output_pixel = output_row[col];
             if (output_pixel > 0) {
-                ASSERT_GT(row, 400) << "Corners must all be in the lower right quadrant";
-                ASSERT_GT(col, 400) << "Corners must all be in the lower right quadrant";
-                ASSERT_EQ((row - 10) % 20, 0) << "Corners must align with odd multiples of 10";
-                ASSERT_EQ((col - 10) % 20, 0) << "Corners must align with odd multiples of 10";
+                ASSERT_GT(row, 400) << "At point (" << col << "," << row << "): Corners must all be in the lower right quadrant";
+                ASSERT_GT(col, 400) << "At point (" << col << "," << row << "): Corners must all be in the lower right quadrant";
+                ASSERT_EQ((row - 10) % 20, 0) << "At point (" << col << "," << row << "): Corners must align with odd multiples of 10";
+                ASSERT_EQ((col - 10) % 20, 0) << "At point (" << col << "," << row << "): Corners must align with odd multiples of 10";
+            } else {
+                ASSERT_FALSE(row > 400 && col > 400 && ((row - 10) % 20) == 0 && ((col - 10) % 20) == 0) << "At point (" << col << "," << row << "): There should be a point here";
             }
         }
     }

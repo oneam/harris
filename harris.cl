@@ -6,7 +6,7 @@ __kernel void Argb32ToFloat (
     __read_only image2d_t src,
     __write_only image2d_t dest) {
     const int2 pos = {get_global_id(0), get_global_id(1)};
-    const float4 in = (float4)read_imageui(src, clamp_sampler, pos) / (float4)255.0f;
+    const float4 in = read_imagef(src, clamp_sampler, pos);
     const float4 out = (float4)(in.x * 0.2126f + in.y * 0.7152f + in.z * 0.0722f);
     write_imagef(dest, pos, out);
 }
@@ -21,14 +21,14 @@ __kernel void Smoothing (
 
     float4 sum = (float4)(0.0f);
     int i = 0;
-    for (int y = -HALF_SMOOTHING; y <= HALF_SMOOTHING; y++) {
+    for (int y = -HALF_SMOOTHING; y <= HALF_SMOOTHING; ++y) {
         for (int x = -HALF_SMOOTHING; x <= HALF_SMOOTHING; ++x) {
             sum += filterWeights[i] * read_imagef(src, reflect_sampler, pos + (int2)(x,y));
             ++i;
         }
     }
 
-    write_imagef(dest, (int2)(pos.x, pos.y), sum);
+    write_imagef(dest, pos, sum);
 }
 
 // Computes dx image
@@ -37,7 +37,7 @@ __kernel void DiffX (
     __write_only image2d_t dest) {
 
     const int2 pos = {get_global_id(0), get_global_id(1)};
-    float4 sum = read_imagef(src, reflect_sampler, (int2)(pos.x-1,pos.y)) - read_imagef(src, reflect_sampler, (int2)(pos.x+1,pos.y));
+    float4 sum = read_imagef(src, reflect_sampler, pos - (int2)(1,0)) - read_imagef(src, reflect_sampler, pos + (int2)(1,0));
     write_imagef(dest, (int2)(pos.x, pos.y), sum);
 }
 
@@ -47,7 +47,7 @@ __kernel void DiffY (
     __write_only image2d_t dest) {
 
     const int2 pos = {get_global_id(0), get_global_id(1)};
-    float4 sum = read_imagef(src, reflect_sampler, (int2)(pos.x,pos.y-1)) - read_imagef(src, reflect_sampler, (int2)(pos.x,pos.y+1));
+    float4 sum = read_imagef(src, reflect_sampler, pos - (int2)(0,1)) - read_imagef(src, reflect_sampler, pos + (int2)(0,1));
     write_imagef (dest, (int2)(pos.x, pos.y), sum);
 }
 
@@ -62,7 +62,7 @@ __kernel void Structure (
 
     for (int y = -HALF_STRUCTURE; y <= HALF_STRUCTURE; ++y) {
         for (int x = -HALF_STRUCTURE; x <= HALF_STRUCTURE; ++x) {
-            const int2 window_pos = {pos.x + x, pos.y + y};
+            const int2 window_pos = pos + (int2)(x,y);
             const float s_x = read_imagef(i_x, reflect_sampler, window_pos).x;
             const float s_y = read_imagef(i_y, reflect_sampler, window_pos).x;
             s.x += s_x * s_x;
