@@ -61,214 +61,223 @@ public:
         const auto width = static_cast<size_t>(image.width());
         const auto height = static_cast<size_t>(image.height());
 
-        cl::Image2D argb_image(
-            context_, 
-            CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, 
-            cl::ImageFormat{ CL_RGBA, CL_UNSIGNED_INT8 },
-            width,
-            height,
-            image.stride(),
-            const_cast<uint8_t*>(image.data()));
 
-        cl::Kernel argb32_to_float_kernel(program_, "Argb32ToFloat");
+        try
+        {
+            cl::Image2D argb_image(
+                context_, 
+                CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, 
+                cl::ImageFormat{ CL_RGBA, CL_UNSIGNED_INT8 },
+                width,
+                height,
+                image.stride(),
+                const_cast<uint8_t*>(image.data()));
 
-        cl::Image2D float_image(
-            context_, 
-            CL_MEM_READ_WRITE,
-            cl::ImageFormat{ CL_R, CL_FLOAT },
-            width,
-            height);
+            cl::Kernel argb32_to_float_kernel(program_, "Argb32ToFloat");
 
-        argb32_to_float_kernel.setArg(0, argb_image);
-        argb32_to_float_kernel.setArg(1, float_image);
+            cl::Image2D float_image(
+                context_, 
+                CL_MEM_READ_WRITE,
+                cl::ImageFormat{ CL_R, CL_FLOAT },
+                width,
+                height);
 
-        cl::Event argb32_to_float_complete;
-        queue_.enqueueNDRangeKernel(
-            argb32_to_float_kernel,
-            cl::NullRange,
-            cl::NDRange{ width, height },
-            cl::NullRange,
-            nullptr,
-            &argb32_to_float_complete);
+            argb32_to_float_kernel.setArg(0, argb_image);
+            argb32_to_float_kernel.setArg(1, float_image);
 
-        cl::Kernel smoothing_kernel(program_, "Smoothing");
+            cl::Event argb32_to_float_complete;
+            queue_.enqueueNDRangeKernel(
+                argb32_to_float_kernel,
+                cl::NullRange,
+                cl::NDRange{ width, height },
+                cl::NullRange,
+                nullptr,
+                &argb32_to_float_complete);
 
-        cl::Buffer gaussian_buffer(
-            context_, 
-            CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, 
-            sizeof(float) * gaussian_.width() * gaussian_.height(), 
-            gaussian_.data());
+            cl::Kernel smoothing_kernel(program_, "Smoothing");
 
-        cl::Image2D smooth_image(
-            context_, 
-            CL_MEM_READ_WRITE, 
-            cl::ImageFormat{ CL_R, CL_FLOAT },
-            width,
-            height);
+            cl::Buffer gaussian_buffer(
+                context_, 
+                CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, 
+                sizeof(float) * gaussian_.width() * gaussian_.height(), 
+                gaussian_.data());
 
-        smoothing_kernel.setArg(0, float_image);
-        smoothing_kernel.setArg(1, gaussian_buffer);
-        smoothing_kernel.setArg(2, smooth_image);
+            cl::Image2D smooth_image(
+                context_, 
+                CL_MEM_READ_WRITE, 
+                cl::ImageFormat{ CL_R, CL_FLOAT },
+                width,
+                height);
 
-        cl::Event smoothing_complete;
-        std::vector<cl::Event> smoothing_prereqs({ argb32_to_float_complete });
-        queue_.enqueueNDRangeKernel(
-            smoothing_kernel,
-            cl::NullRange,
-            cl::NDRange{ width, height},
-            cl::NullRange,
-            &smoothing_prereqs,
-            &smoothing_complete);
+            smoothing_kernel.setArg(0, float_image);
+            smoothing_kernel.setArg(1, gaussian_buffer);
+            smoothing_kernel.setArg(2, smooth_image);
 
-        cl::Kernel diff_x_kernel(program_, "DiffX");
+            cl::Event smoothing_complete;
+            std::vector<cl::Event> smoothing_prereqs({ argb32_to_float_complete });
+            queue_.enqueueNDRangeKernel(
+                smoothing_kernel,
+                cl::NullRange,
+                cl::NDRange{ width, height},
+                cl::NullRange,
+                &smoothing_prereqs,
+                &smoothing_complete);
 
-        cl::Image2D i_x_image(
-            context_, 
-            CL_MEM_READ_WRITE, 
-            cl::ImageFormat{ CL_R, CL_FLOAT },
-            width,
-            height);
+            cl::Kernel diff_x_kernel(program_, "DiffX");
 
-        diff_x_kernel.setArg(0, smooth_image);
-        diff_x_kernel.setArg(1, i_x_image);
+            cl::Image2D i_x_image(
+                context_, 
+                CL_MEM_READ_WRITE, 
+                cl::ImageFormat{ CL_R, CL_FLOAT },
+                width,
+                height);
 
-        cl::Event diff_x_complete;
-        std::vector<cl::Event> diff_x_prereqs({ smoothing_complete });
-        queue_.enqueueNDRangeKernel(
-            diff_x_kernel,
-            cl::NullRange,
-            cl::NDRange{ width, height },
-            cl::NullRange,
-            &diff_x_prereqs,
-            &diff_x_complete);
+            diff_x_kernel.setArg(0, smooth_image);
+            diff_x_kernel.setArg(1, i_x_image);
 
-        cl::Kernel diff_y_kernel(program_, "DiffY");
+            cl::Event diff_x_complete;
+            std::vector<cl::Event> diff_x_prereqs({ smoothing_complete });
+            queue_.enqueueNDRangeKernel(
+                diff_x_kernel,
+                cl::NullRange,
+                cl::NDRange{ width, height },
+                cl::NullRange,
+                &diff_x_prereqs,
+                &diff_x_complete);
 
-        cl::Image2D i_y_image(
-            context_, 
-            CL_MEM_READ_WRITE, 
-            cl::ImageFormat{ CL_R, CL_FLOAT },
-            width,
-            height);
+            cl::Kernel diff_y_kernel(program_, "DiffY");
 
-        diff_y_kernel.setArg(0, smooth_image);
-        diff_y_kernel.setArg(1, i_y_image);
+            cl::Image2D i_y_image(
+                context_, 
+                CL_MEM_READ_WRITE, 
+                cl::ImageFormat{ CL_R, CL_FLOAT },
+                width,
+                height);
 
-        cl::Event diff_y_complete;
-        std::vector<cl::Event> diff_y_prereqs({ smoothing_complete });
-        queue_.enqueueNDRangeKernel(
-            diff_y_kernel,
-            cl::NullRange,
-            cl::NDRange{ width, height},
-            cl::NullRange,
-            &diff_y_prereqs,
-            &diff_y_complete);
+            diff_y_kernel.setArg(0, smooth_image);
+            diff_y_kernel.setArg(1, i_y_image);
 
-        cl::Kernel structure_kernel(program_, "Structure");
+            cl::Event diff_y_complete;
+            std::vector<cl::Event> diff_y_prereqs({ smoothing_complete });
+            queue_.enqueueNDRangeKernel(
+                diff_y_kernel,
+                cl::NullRange,
+                cl::NDRange{ width, height},
+                cl::NullRange,
+                &diff_y_prereqs,
+                &diff_y_complete);
 
-        cl::Image2D structure_image(
-            context_, 
-            CL_MEM_READ_WRITE, 
-            cl::ImageFormat{ CL_RGBA, CL_FLOAT },
-            width,
-            height);
+            cl::Kernel structure_kernel(program_, "Structure");
 
-        structure_kernel.setArg(0, i_x_image);
-        structure_kernel.setArg(1, i_y_image);
-        structure_kernel.setArg(2, structure_image);
+            cl::Image2D structure_image(
+                context_, 
+                CL_MEM_READ_WRITE, 
+                cl::ImageFormat{ CL_RGBA, CL_FLOAT },
+                width,
+                height);
 
-        cl::Event structure_complete;
-        std::vector<cl::Event> structure_prereqs({ diff_x_complete, diff_y_complete });
-        queue_.enqueueNDRangeKernel(
-            structure_kernel,
-            cl::NullRange,
-            cl::NDRange{ width, height },
-            cl::NullRange,
-            &structure_prereqs,
-            &structure_complete);
+            structure_kernel.setArg(0, i_x_image);
+            structure_kernel.setArg(1, i_y_image);
+            structure_kernel.setArg(2, structure_image);
 
-        cl::Kernel response_kernel(program_, "Response");
+            cl::Event structure_complete;
+            std::vector<cl::Event> structure_prereqs({ diff_x_complete, diff_y_complete });
+            queue_.enqueueNDRangeKernel(
+                structure_kernel,
+                cl::NullRange,
+                cl::NDRange{ width, height },
+                cl::NullRange,
+                &structure_prereqs,
+                &structure_complete);
 
-        cl::Image2D response_image(
-            context_, 
-            CL_MEM_READ_WRITE, 
-            cl::ImageFormat{ CL_R, CL_FLOAT },
-            width,
-            height);
+            cl::Kernel response_kernel(program_, "Response");
 
-        response_kernel.setArg(0, structure_image);
-        response_kernel.setArg(1, response_image);
+            cl::Image2D response_image(
+                context_, 
+                CL_MEM_READ_WRITE, 
+                cl::ImageFormat{ CL_R, CL_FLOAT },
+                width,
+                height);
 
-        cl::Event response_complete;
-        std::vector<cl::Event> response_prereqs({ structure_complete });
-        queue_.enqueueNDRangeKernel(
-            response_kernel,
-            cl::NullRange,
-            cl::NDRange{ width, height},
-            cl::NullRange,
-            &response_prereqs,
-            &response_complete);
+            response_kernel.setArg(0, structure_image);
+            response_kernel.setArg(1, response_image);
 
-        cl::Kernel row_max_kernel(program_, "RowMax");
+            cl::Event response_complete;
+            std::vector<cl::Event> response_prereqs({ structure_complete });
+            queue_.enqueueNDRangeKernel(
+                response_kernel,
+                cl::NullRange,
+                cl::NDRange{ width, height},
+                cl::NullRange,
+                &response_prereqs,
+                &response_complete);
 
-        cl::Buffer row_max_buffer(
-            context_, 
-            CL_MEM_READ_WRITE, 
-            sizeof(float) * height);
+            cl::Kernel row_max_kernel(program_, "RowMax");
 
-        row_max_kernel.setArg(0, response_image);
-        row_max_kernel.setArg(1, row_max_buffer);
+            cl::Buffer row_max_buffer(
+                context_, 
+                CL_MEM_READ_WRITE, 
+                sizeof(float) * height);
 
-        cl::Event row_max_complete;
-        std::vector<cl::Event> row_max_prereqs({ response_complete });
-        queue_.enqueueNDRangeKernel(
-            row_max_kernel,
-            cl::NullRange,
-            cl::NDRange{ height },
-            cl::NullRange,
-            &row_max_prereqs,
-            &row_max_complete);
+            row_max_kernel.setArg(0, response_image);
+            row_max_kernel.setArg(1, row_max_buffer);
 
-        cl::Kernel max_kernel(program_, "Max");
+            cl::Event row_max_complete;
+            std::vector<cl::Event> row_max_prereqs({ response_complete });
+            queue_.enqueueNDRangeKernel(
+                row_max_kernel,
+                cl::NullRange,
+                cl::NDRange{ height },
+                cl::NullRange,
+                &row_max_prereqs,
+                &row_max_complete);
 
-        max_kernel.setArg(0, height);
-        max_kernel.setArg(1, row_max_buffer);
+            cl::Kernel max_kernel(program_, "Max");
 
-        cl::Event max_complete;
-        std::vector<cl::Event> max_prereqs({ row_max_complete });
-        queue_.enqueueTask(
-            max_kernel,
-            &max_prereqs,
-            &max_complete
-        );
+            max_kernel.setArg(0, height);
+            max_kernel.setArg(1, row_max_buffer);
 
-        cl::Kernel suppression_kernel(program_, "NonMaxSuppression");
+            cl::Event max_complete;
+            std::vector<cl::Event> max_prereqs({ row_max_complete });
+            queue_.enqueueTask(
+                max_kernel,
+                &max_prereqs,
+                &max_complete
+            );
 
-        Image<float> corners(image.width(), image.height());
-        cl::Image2D corner_image(
-            context_,
-            CL_MEM_WRITE_ONLY | CL_MEM_USE_HOST_PTR,
-            cl::ImageFormat{ CL_R, CL_FLOAT },
-            width,
-            height,
-            image.stride(),
-            const_cast<uint8_t*>(image.data()));
+            cl::Kernel suppression_kernel(program_, "NonMaxSuppression");
 
-        suppression_kernel.setArg(0, response_image);
-        suppression_kernel.setArg(1, row_max_buffer);
-        suppression_kernel.setArg(2, corner_image);
+            Image<float> corners(image.width(), image.height());
+            cl::Image2D corner_image(
+                context_,
+                CL_MEM_WRITE_ONLY | CL_MEM_USE_HOST_PTR,
+                cl::ImageFormat{ CL_R, CL_FLOAT },
+                width,
+                height,
+                image.stride(),
+                const_cast<uint8_t*>(image.data()));
 
-        cl::Event suppression_complete;
-        std::vector<cl::Event> suppression_prereqs({ response_complete });
-        queue_.enqueueNDRangeKernel(
-            suppression_kernel,
-            cl::NullRange,
-            cl::NDRange{ width, height },
-            cl::NullRange,
-            &suppression_prereqs,
-            &suppression_complete);
+            suppression_kernel.setArg(0, response_image);
+            suppression_kernel.setArg(1, row_max_buffer);
+            suppression_kernel.setArg(2, corner_image);
 
-        return corners;
+            cl::Event suppression_complete;
+            std::vector<cl::Event> suppression_prereqs({ response_complete });
+            queue_.enqueueNDRangeKernel(
+                suppression_kernel,
+                cl::NullRange,
+                cl::NDRange{ width, height },
+                cl::NullRange,
+                &suppression_prereqs,
+                &suppression_complete);
+
+            return corners;
+        }
+        catch(const cl::Error& e)
+        {
+            std::cerr << e.what() << ": " << e.err() << '\n';
+            throw;
+        }
     }
 
 private:
