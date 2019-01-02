@@ -28,7 +28,10 @@ public:
         }
 
         platforms_[platform_num].getDevices(CL_DEVICE_TYPE_GPU, &devices_);
-        if (platforms_.empty()) platforms_[platform_num].getDevices(CL_DEVICE_TYPE_ALL, &devices_); // If no GPU devices are found, try all devices
+        if (devices_.empty()) {
+            std::cout << "No GPU devices found. Looking for any device";
+            platforms_[platform_num].getDevices(CL_DEVICE_TYPE_ALL, &devices_); // If no GPU devices are found, try all devices
+        }
         std::cout << "Found " << devices_.size() << " devices(s)" << std::endl;
         for (const auto& device : devices_) {
             std::cout << "\t" << device.getInfo<CL_DEVICE_NAME>() << std::endl;
