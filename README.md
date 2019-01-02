@@ -1,6 +1,4 @@
-# Harris Corners
-
-[![Build Status](https://travis-ci.org/oneam/harris.svg)](https://travis-ci.org/oneam/harris)
+# Harris Corners [![Build Status](https://travis-ci.org/oneam/harris.svg)](https://travis-ci.org/oneam/harris)
 
 This repo contains an example of the Harris corner detection algorithm implemented in pure C++.
 
