@@ -1,0 +1,17 @@
+language: cpp
+
+os:
+  - osx
+
+compiler:
+  - clang
+  - gcc
+
+addons:
+  homebrew:
+    packages:
+    - opencv
+
+script:
+  - cmake --build .
+  - ./unitTests
