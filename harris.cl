@@ -6,7 +6,7 @@ __kernel void Argb32ToFloat (
     __read_only image2d_t src,
     __write_only image2d_t dest) {
     const int2 pos = {get_global_id(0), get_global_id(1)};
-    const float4 in = read_imagef(src, clamp_sampler, pos);
+    const float4 in = (float4)read_imageui(src, clamp_sampler, pos) / (float4)255.0f;
     const float4 out = (float4)(in.x * 0.2126f + in.y * 0.7152f + in.z * 0.0722f);
     write_imagef(dest, pos, out);
 }

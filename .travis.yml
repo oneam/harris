@@ -3,9 +3,10 @@ language: cpp
 os:
   - osx
 
+osx_image: xcode10.1
+
 compiler:
   - clang
-  - gcc
 
 addons:
   homebrew:
@@ -13,5 +14,6 @@ addons:
     - opencv
 
 script:
+  - cmake .
   - cmake --build .
   - ./unitTests

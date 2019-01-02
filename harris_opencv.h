@@ -22,29 +22,17 @@ public:
     ~HarrisOpenCV() override = default;
 
     Image<float> FindCorners(const Image<Argb32>& image) override {
-        cv::Mat image_mat;
+        cv::Mat image_mat(image.height(), image.width(), CV_8UC4, const_cast<uint8_t*>(image.data()), image.stride());
+        cv::Mat gray_mat;
         cv::Mat float_mat;
         cv::Mat corners_mat;
-        ToMat(image, image_mat, CV_8UC4);
-        cv::cvtColor(image_mat, image_mat, cv::COLOR_BGRA2GRAY);
-        image_mat.convertTo(float_mat, CV_32F, 1.0/255.0);
-        FindCornersOpenCV(image_mat, corners_mat);
-        return ToImage(corners_mat);
+        cv::cvtColor(image_mat, gray_mat, cv::COLOR_BGRA2GRAY);
+        gray_mat.convertTo(float_mat, CV_32F, 1.0/255.0);
+        FindCornersOpenCV(float_mat, corners_mat);
+        return Image<float>(corners_mat.data, corners_mat.cols, corners_mat.rows, corners_mat.step[0]);
     }
 
 private:
-    // Converts an Image<Float> to an OpenCV matrix, useful for displaying by OpenCV.
-    template<typename P>
-    void ToMat(const Image<P>& src, cv::Mat& dest, int type) {
-        dest.create(src.height(), src.width(), type);
-        std::memmove(dest.data, src.data(), src.stride() * src.height());
-    }
-
-    // Converts an Image<Float> to an OpenCV matrix, useful for displaying by OpenCV.
-    Image<float> ToImage(cv::Mat& dest) {
-        return Image<float>(dest.data, dest.cols, dest.rows, dest.step[0]);
-    }
-
     // Non-Maximal suppresion with thresholding implemented using standard OpenCV components
     void NonMaxSuppression(cv::Mat src, cv::Mat& dest, int block_size, double threshold) {
         if (src.type() != CV_32F) throw std::invalid_argument("src must be float image");
