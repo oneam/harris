@@ -34,7 +34,7 @@ public:
         catch(const cl::Error& e)
         {
             if (e.err() != CL_DEVICE_NOT_FOUND) throw;
-            std::cout << "No GPU devices found. Looking for any device";
+            std::cout << "No GPU devices found. Looking for ALL devices\n";
             platforms_[platform_num].getDevices(CL_DEVICE_TYPE_ALL, &devices_); // If no GPU devices are found, try all devices
         }
         
@@ -64,7 +64,7 @@ public:
         cl::Image2D argb_image(
             context_, 
             CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, 
-            cl::ImageFormat{ CL_RGBA, CL_UNORM_INT8 },
+            cl::ImageFormat{ CL_RGBA, CL_UNSIGNED_INT8 },
             width,
             height,
             image.stride(),
@@ -244,12 +244,15 @@ public:
 
         cl::Kernel suppression_kernel(program_, "NonMaxSuppression");
 
+        Image<float> corners(image.width(), image.height());
         cl::Image2D corner_image(
             context_,
-            CL_MEM_WRITE_ONLY,
+            CL_MEM_WRITE_ONLY | CL_MEM_USE_HOST_PTR,
             cl::ImageFormat{ CL_R, CL_FLOAT },
             width,
-            height);
+            height,
+            image.stride(),
+            const_cast<uint8_t*>(image.data()));
 
         suppression_kernel.setArg(0, response_image);
         suppression_kernel.setArg(1, row_max_buffer);
@@ -264,18 +267,6 @@ public:
             cl::NullRange,
             &suppression_prereqs,
             &suppression_complete);
-
-        Image<float> corners(image.width(), image.height());
-        std::vector<cl::Event> read_corners_prereqs({ suppression_complete });
-        queue_.enqueueReadImage(
-            corner_image,
-            CL_TRUE,
-            sizes({}),
-            sizes({ width, height, 1 }),
-            corners.stride(),
-            0,
-            corners.data(),
-            &read_corners_prereqs);
 
         return corners;
     }
