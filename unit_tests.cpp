@@ -46,7 +46,7 @@ TEST(AlgorithmTest, OpenCL) {
 }
 
 // Tests pure C++ implementation
-TEST(AlgorithmTest, OpenCV) {
+TEST(AlgorithmTest, DISABLED_OpenCV) {
     HarrisOpenCV harris;
     auto input = LoadImage("lines.png");
     auto output = harris.FindCorners(input);

@@ -27,8 +27,8 @@ public:
         cv::Mat float_mat;
         cv::Mat corners_mat;
         cv::cvtColor(image_mat, gray_mat, cv::COLOR_BGRA2GRAY);
-        image_mat.convertTo(float_mat, CV_32F, 1.0/255.0);
-        FindCornersOpenCV(image_mat, corners_mat);
+        gray_mat.convertTo(float_mat, CV_32F, 1.0/255.0);
+        FindCornersOpenCV(float_mat, corners_mat);
         return Image<float>(corners_mat.data, corners_mat.cols, corners_mat.rows, corners_mat.step[0]);
     }
 
