@@ -5,6 +5,7 @@
 
 #include "harris_base.h"
 #include "image.h"
+#include "image_conversion.h"
 #include "filter_2d.h"
 #include "map_2d.h"
 
@@ -28,9 +29,12 @@ public:
     ~HarrisCpp() override = default;
 
     // Runs the pure C++ Harris corner detector
-    Image<float> FindCorners(const Image<float>& image) override {
+    Image<float> FindCorners(const Image<Argb32>& image) override {
+        // Convert to float image
+        const auto float_image = ToFloat(image);
+
         // Compute the structure tensor image
-        const auto structure_tensor = StructureTensorImage(image);
+        const auto structure_tensor = StructureTensorImage(float_image);
 
         // Compute the Harris response
         const auto response = Map<float>(structure_tensor, [k = k_](StructureTensor s) { return (s.xx * s.yy - s.xy * s.xy) - k * (s.xx + s.yy) * (s.xx + s.yy); });

@@ -42,6 +42,10 @@ Usage: harris [params] input
 		Print this message
 	-b, --benchmark
 		Prints the rendering time for each frame as it's converted
+	--cl-device (value:0)
+		The index of the device to use when runnning OpenCL algorithm
+	--cl-platform (value:0)
+		The index of the platform to use when runnning OpenCL algorithm
 	--harris_k, -k (value:0.04)
 		The value of the Harris free parameter
 	-o, --output
@@ -78,14 +82,26 @@ Most formats that are readable by OpenCV will be supported.
 The `--show` param is used to display the images with corners highlighted.
 After the last image in the sequence is displayed, the application will pause waiting for a key to be pressed.
 
+## Running Unit Tests
+
+The project uses the CMake test framework and Googletest. Running the unit tests is as simple as calling:
+
+```
+ctest
+```
+
+Currently the unit tests simply run a correctness test by inputting a pre created image (lines.png) with well known corner points.
+
+I would have liked to do a more thurough set of unit tests, but isn't that always the case?
+
 ## Benchmark
 
 Both pure C++ and OpenCL implenetations were run against the aruco.m4v file included in the repo. the following benchmark timing results were measured:
 
 | Method | Total Time | Average time per frame |
 |--------|------------|------------------------|
-| OpenCL | 17.4106 s  | 83.3044 ms             |
-| C++    | 165.692 s  | 792.785 ms             |
+| OpenCL | 12.0862 s  | 57.8289 ms             |
+| C++    | 158.245 s  | 757.154 ms             |
 
 ## Implementation Notes
 
@@ -135,7 +151,11 @@ This is my first OpenCL project, so I may have made some design decisions that d
 I decided to use the C++ binding for OpenCL as it did automatic releasing in order to make the code a little cleaner.
 I used a local version of cl.hpp since my development environmment didn't have it available.
 
-The implementation of Max value reduction is not my favorite. If I had more time I would see if I could optimize it more. My assumption is that there is an optimal size for work-items that is bigger than one pixel but smaller than one row. I didn't spend enough time trying to find that optimal size.
+The implementation of Max value reduction is not my favorite. If I had more time I would see if I could optimize it more.
+My assumption is that there is an optimal size for work-items that is bigger than one pixel but smaller than one row. I didn't spend enough time trying to find that optimal size.
+
+If I had more time I would implement a method to cascade the enqueue calls so that the the events are still coordinated but the code is less redundant.
+I have an idea how, but haven't found time to implement it.
 
 ## OpenCV
 

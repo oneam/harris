@@ -17,7 +17,7 @@ namespace harris {
 class HarrisOpenCL : public HarrisBase {
 public:
 
-    HarrisOpenCL(int smoothing_size = 5, int structure_size = 5, float harris_k = 0.04, float threshold_ratio = 0.5, int suppression_size = 9) :
+    HarrisOpenCL(int platform_num = 0, int device_num = 0, int smoothing_size = 5, int structure_size = 5, float harris_k = 0.04, float threshold_ratio = 0.5, int suppression_size = 9) :
         HarrisBase(smoothing_size, structure_size, harris_k, threshold_ratio, suppression_size),
         gaussian_(GaussianKernel(smoothing_size)) {
 
@@ -26,16 +26,18 @@ public:
         for (const auto& platform : platforms_) {
             std::cout << "\t" <<  platform.getInfo<CL_PLATFORM_NAME>() << std::endl;
         }
- 
-        platforms_[0].getDevices(CL_DEVICE_TYPE_GPU, &devices_);
+
+        platforms_[platform_num].getDevices(CL_DEVICE_TYPE_GPU, &devices_);
+        if (platforms_.empty()) platforms_[platform_num].getDevices(CL_DEVICE_TYPE_ALL, &devices_); // If no GPU devices are found, try all devices
         std::cout << "Found " << devices_.size() << " devices(s)" << std::endl;
         for (const auto& device : devices_) {
             std::cout << "\t" << device.getInfo<CL_DEVICE_NAME>() << std::endl;
         }
-        
+
         context_ = cl::Context(devices_);
         program_ = CreateProgram("harris.cl", context_);
         BuildProgram(program_, devices_);
+        queue_ = cl::CommandQueue(context_, devices_[device_num]);
     }
 
     // Rule of five: Neither movable nor copyable
@@ -46,22 +48,41 @@ public:
     ~HarrisOpenCL() override = default;
 
     // Runs the OpenCL Harris corner detector
-    Image<float> FindCorners(const Image<float>& image) override {
-        cl::Event smoothing_complete, diff_x_complete, diff_y_complete, structure_complete, response_complete, row_max_complete, max_complete, suppression_complete;
+    Image<float> FindCorners(const Image<Argb32>& image) override {
         const auto width = static_cast<size_t>(image.width());
         const auto height = static_cast<size_t>(image.height());
 
-        cl::CommandQueue queue(context_, devices_[0]);
-        cl::Kernel smoothing_kernel(program_, "Smoothing");
-
-        cl::Image2D src_image(
+        cl::Image2D argb_image(
             context_, 
             CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, 
-            cl::ImageFormat{ CL_R, CL_FLOAT },
+            cl::ImageFormat{ CL_RGBA, CL_UNORM_INT8 },
             width,
             height,
             image.stride(),
             const_cast<uint8_t*>(image.data()));
+
+        cl::Kernel argb32_to_float_kernel(program_, "Argb32ToFloat");
+
+        cl::Image2D float_image(
+            context_, 
+            CL_MEM_READ_WRITE,
+            cl::ImageFormat{ CL_R, CL_FLOAT },
+            width,
+            height);
+
+        argb32_to_float_kernel.setArg(0, argb_image);
+        argb32_to_float_kernel.setArg(1, float_image);
+
+        cl::Event argb32_to_float_complete;
+        queue_.enqueueNDRangeKernel(
+            argb32_to_float_kernel,
+            cl::NullRange,
+            cl::NDRange{ width, height },
+            cl::NullRange,
+            nullptr,
+            &argb32_to_float_complete);
+
+        cl::Kernel smoothing_kernel(program_, "Smoothing");
 
         cl::Buffer gaussian_buffer(
             context_, 
@@ -76,16 +97,18 @@ public:
             width,
             height);
 
-        smoothing_kernel.setArg(0, src_image);
+        smoothing_kernel.setArg(0, float_image);
         smoothing_kernel.setArg(1, gaussian_buffer);
         smoothing_kernel.setArg(2, smooth_image);
 
-        queue.enqueueNDRangeKernel(
+        cl::Event smoothing_complete;
+        std::vector<cl::Event> smoothing_prereqs({ argb32_to_float_complete });
+        queue_.enqueueNDRangeKernel(
             smoothing_kernel,
             cl::NullRange,
             cl::NDRange{ width, height},
             cl::NullRange,
-            nullptr,
+            &smoothing_prereqs,
             &smoothing_complete);
 
         cl::Kernel diff_x_kernel(program_, "DiffX");
@@ -100,8 +123,9 @@ public:
         diff_x_kernel.setArg(0, smooth_image);
         diff_x_kernel.setArg(1, i_x_image);
 
+        cl::Event diff_x_complete;
         std::vector<cl::Event> diff_x_prereqs({ smoothing_complete });
-        queue.enqueueNDRangeKernel(
+        queue_.enqueueNDRangeKernel(
             diff_x_kernel,
             cl::NullRange,
             cl::NDRange{ width, height },
@@ -121,8 +145,9 @@ public:
         diff_y_kernel.setArg(0, smooth_image);
         diff_y_kernel.setArg(1, i_y_image);
 
+        cl::Event diff_y_complete;
         std::vector<cl::Event> diff_y_prereqs({ smoothing_complete });
-        queue.enqueueNDRangeKernel(
+        queue_.enqueueNDRangeKernel(
             diff_y_kernel,
             cl::NullRange,
             cl::NDRange{ width, height},
@@ -143,8 +168,9 @@ public:
         structure_kernel.setArg(1, i_y_image);
         structure_kernel.setArg(2, structure_image);
 
+        cl::Event structure_complete;
         std::vector<cl::Event> structure_prereqs({ diff_x_complete, diff_y_complete });
-        queue.enqueueNDRangeKernel(
+        queue_.enqueueNDRangeKernel(
             structure_kernel,
             cl::NullRange,
             cl::NDRange{ width, height },
@@ -164,8 +190,9 @@ public:
         response_kernel.setArg(0, structure_image);
         response_kernel.setArg(1, response_image);
 
+        cl::Event response_complete;
         std::vector<cl::Event> response_prereqs({ structure_complete });
-        queue.enqueueNDRangeKernel(
+        queue_.enqueueNDRangeKernel(
             response_kernel,
             cl::NullRange,
             cl::NDRange{ width, height},
@@ -183,8 +210,9 @@ public:
         row_max_kernel.setArg(0, response_image);
         row_max_kernel.setArg(1, row_max_buffer);
 
+        cl::Event row_max_complete;
         std::vector<cl::Event> row_max_prereqs({ response_complete });
-        queue.enqueueNDRangeKernel(
+        queue_.enqueueNDRangeKernel(
             row_max_kernel,
             cl::NullRange,
             cl::NDRange{ height },
@@ -197,8 +225,9 @@ public:
         max_kernel.setArg(0, height);
         max_kernel.setArg(1, row_max_buffer);
 
+        cl::Event max_complete;
         std::vector<cl::Event> max_prereqs({ row_max_complete });
-        queue.enqueueTask(
+        queue_.enqueueTask(
             max_kernel,
             &max_prereqs,
             &max_complete
@@ -217,8 +246,9 @@ public:
         suppression_kernel.setArg(1, row_max_buffer);
         suppression_kernel.setArg(2, corner_image);
 
+        cl::Event suppression_complete;
         std::vector<cl::Event> suppression_prereqs({ response_complete });
-        queue.enqueueNDRangeKernel(
+        queue_.enqueueNDRangeKernel(
             suppression_kernel,
             cl::NullRange,
             cl::NDRange{ width, height },
@@ -228,7 +258,7 @@ public:
 
         Image<float> corners(image.width(), image.height());
         std::vector<cl::Event> read_corners_prereqs({ suppression_complete });
-        queue.enqueueReadImage(
+        queue_.enqueueReadImage(
             corner_image,
             CL_TRUE,
             sizes({}),
@@ -246,6 +276,7 @@ private:
     std::vector<cl::Platform> platforms_;
     cl::Context context_;
     cl::Program program_;
+    cl::CommandQueue queue_;
     FilterKernel gaussian_;
 
     cl::Program CreateProgram(const std::string& source_file, const cl::Context& context)

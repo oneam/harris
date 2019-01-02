@@ -1,8 +1,11 @@
 CMakeFiles/
 CMakeCache.txt
+CTestTestfile.cmake
 extern/
 Makefile
 harris
 *.exe
 build/
 .vscode/
+unitTests
+Testing/

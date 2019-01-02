@@ -20,6 +20,8 @@ const cv::String keys =
     "{threshold      |  0.5 | The Harris response suppression threshold defined as a ratio of the maximum response value                    }"
     "{opencv         |      | Use the OpenCV algorithm rather than the pure C++ method                                                      }"
     "{opencl         |      | Use the OpenCL algorithm rather than the pure C++ method                                                      }"
+    "{cl-platform    |    0 | The index of the platform to use when runnning OpenCL algorithm                                               }"
+    "{cl-device      |    0 | The index of the device to use when runnning OpenCL algorithm                                                 }"
     ;
 
 using namespace harris;
@@ -81,6 +83,8 @@ int main(int argc, char* argv[]) {
     auto suppression_size = parser.get<int>("suppression");
     auto harris_k = parser.get<float>("harris_k");
     auto threshold_ratio = parser.get<float>("threshold");
+    auto cl_platform = parser.get<int>("cl-platform");
+    auto cl_device = parser.get<int>("cl-device");
 
     // Check for command line errors or --help param
     if (!parser.check())
@@ -108,7 +112,7 @@ int main(int argc, char* argv[]) {
     if (use_opencv) {
         harris = std::make_shared<HarrisOpenCV>(smoothing_size, structure_size, harris_k, threshold_ratio, suppression_size);
     } else if (use_opencl) {
-        harris = std::make_shared<HarrisOpenCL>(smoothing_size, structure_size, harris_k, threshold_ratio, suppression_size);
+        harris = std::make_shared<HarrisOpenCL>(cl_platform, cl_device, smoothing_size, structure_size, harris_k, threshold_ratio, suppression_size);
     } else {
         harris = std::make_shared<HarrisCpp>(smoothing_size, structure_size, harris_k, threshold_ratio, suppression_size);
     }

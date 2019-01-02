@@ -21,10 +21,13 @@ public:
     HarrisOpenCV& operator=(HarrisOpenCV&&) = delete;
     ~HarrisOpenCV() override = default;
 
-    Image<float> FindCorners(const Image<float>& image) override {
+    Image<float> FindCorners(const Image<Argb32>& image) override {
         cv::Mat image_mat;
+        cv::Mat float_mat;
         cv::Mat corners_mat;
-        ToMat(image, image_mat, CV_32F);
+        ToMat(image, image_mat, CV_8UC4);
+        cv::cvtColor(image_mat, image_mat, cv::COLOR_BGRA2GRAY);
+        image_mat.convertTo(float_mat, CV_32F, 1.0/255.0);
         FindCornersOpenCV(image_mat, corners_mat);
         return ToImage(corners_mat);
     }

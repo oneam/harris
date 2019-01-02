@@ -28,12 +28,7 @@ public:
     HarrisBase& operator=(HarrisBase&&) = delete;
     virtual ~HarrisBase() = default;
 
-    virtual Image<float> FindCorners(const Image<float>& image)  = 0;
-
-    virtual Image<float> FindCorners(const Image<Argb32>& image) {
-        const auto float_img = ToFloat(image);
-        return FindCorners(float_img);
-    }
+    virtual Image<float> FindCorners(const Image<Argb32>& image) = 0;
 
     int smoothing_size() const { return smoothing_size_; }
     int structure_size() const { return structure_size_; }
