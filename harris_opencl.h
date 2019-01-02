@@ -56,7 +56,6 @@ public:
         std::cout << "Found " << supportedFormats.size() << " supported format(s)" << std::endl;
         cl::ImageFormat float_format;
         for (const auto& format : supportedFormats) {
-            std::cout << "\t" << std::hex << format.image_channel_order << ":" << format.image_channel_data_type << std::dec << std::endl;
             if (format.image_channel_data_type == CL_FLOAT && (format.image_channel_order == CL_R || format.image_channel_order == CL_Rx)) float_format_ = format;
         }
 
