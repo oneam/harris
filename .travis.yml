@@ -16,4 +16,4 @@ addons:
 script:
   - cmake .
   - cmake --build .
-  - ./unitTests
+  - ./unitTests --gtest_filter=AlgorithmTest.Cpp
