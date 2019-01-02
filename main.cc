@@ -21,7 +21,7 @@ const cv::String keys =
     "{opencv         |      | Use the OpenCV algorithm rather than the pure C++ method                                                      }"
     "{opencl         |      | Use the OpenCL algorithm rather than the pure C++ method                                                      }"
     "{cl-platform    |    0 | The index of the platform to use when runnning OpenCL algorithm                                               }"
-    "{cl-device      |    0 | The index of the device to use when runnning OpenCL algorithm                                                 }"
+    "{cl-device      |   -1 | The index of the device to use when runnning OpenCL algorithm (use -1 to select first GPU if available)       }"
     ;
 
 using namespace harris;

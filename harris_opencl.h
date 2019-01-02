@@ -17,7 +17,7 @@ namespace harris {
 class HarrisOpenCL : public HarrisBase {
 public:
 
-    HarrisOpenCL(int platform_num = 0, int device_num = 0, int smoothing_size = 5, int structure_size = 5, float harris_k = 0.04, float threshold_ratio = 0.5, int suppression_size = 9) :
+    HarrisOpenCL(int platform_num = 0, int device_num = -1, int smoothing_size = 5, int structure_size = 5, float harris_k = 0.04, float threshold_ratio = 0.5, int suppression_size = 9) :
         HarrisBase(smoothing_size, structure_size, harris_k, threshold_ratio, suppression_size),
         gaussian_(GaussianKernel(smoothing_size)) {
 
@@ -27,25 +27,42 @@ public:
             std::cout << "\t" <<  platform.getInfo<CL_PLATFORM_NAME>() << std::endl;
         }
 
-        try
-        {
-            platforms_[platform_num].getDevices(CL_DEVICE_TYPE_GPU, &devices_);
-        }
-        catch(const cl::Error& e)
-        {
-            if (e.err() != CL_DEVICE_NOT_FOUND) throw;
-            std::cout << "No GPU devices found. Looking for ALL devices\n";
-            platforms_[platform_num].getDevices(CL_DEVICE_TYPE_ALL, &devices_); // If no GPU devices are found, try all devices
-        }
-        
+        platforms_[platform_num].getDevices(CL_DEVICE_TYPE_ALL, &devices_);
+
         std::cout << "Found " << devices_.size() << " devices(s)" << std::endl;
         for (const auto& device : devices_) {
             std::cout << "\t" << device.getInfo<CL_DEVICE_NAME>() << std::endl;
         }
 
-        context_ = cl::Context(devices_);
+        // If device_num is default choose either the first GPU device or the first device if no GPU is available.
+        if (device_num < 0) {
+            for (auto i = 0; i < devices_.size(); ++i) {
+                auto device_type = devices_[i].getInfo<CL_DEVICE_TYPE>();
+                if (device_type == CL_DEVICE_TYPE_GPU) {
+                    device_num = i;
+                    break;
+                }
+            }
+
+            if (device_num < 0) device_num = 0;
+        }
+
+        context_ = cl::Context(devices_[device_num]);
+
+        // GPU and CPU types use different single channel image formats (CL_R or CL_Rx) so I need to figure out which one to use.
+        // TODO: It might be better to just switch these all to float*
+        std::vector<cl::ImageFormat> supportedFormats;
+        context_.getSupportedImageFormats(CL_MEM_READ_WRITE, CL_MEM_OBJECT_IMAGE2D, &supportedFormats);
+        std::cout << "Found " << supportedFormats.size() << " supported format(s)" << std::endl;
+        cl::ImageFormat float_format;
+        for (const auto& format : supportedFormats) {
+            std::cout << "\t" << std::hex << format.image_channel_order << ":" << format.image_channel_data_type << std::dec << std::endl;
+            if (format.image_channel_data_type == CL_FLOAT && (format.image_channel_order == CL_R || format.image_channel_order == CL_Rx)) float_format_ = format;
+        }
+
+
         program_ = CreateProgram("harris.cl", context_);
-        BuildProgram(program_, devices_);
+        BuildProgram(program_, std::vector<cl::Device>({ devices_[device_num] }));
         queue_ = cl::CommandQueue(context_, devices_[device_num]);
     }
 
@@ -78,7 +95,7 @@ public:
             cl::Image2D float_image(
                 context_, 
                 CL_MEM_READ_WRITE,
-                cl::ImageFormat{ CL_R, CL_FLOAT },
+                float_format_,
                 width,
                 height);
 
@@ -105,7 +122,7 @@ public:
             cl::Image2D smooth_image(
                 context_, 
                 CL_MEM_READ_WRITE, 
-                cl::ImageFormat{ CL_R, CL_FLOAT },
+                float_format_,
                 width,
                 height);
 
@@ -128,7 +145,7 @@ public:
             cl::Image2D i_x_image(
                 context_, 
                 CL_MEM_READ_WRITE, 
-                cl::ImageFormat{ CL_R, CL_FLOAT },
+                float_format_,
                 width,
                 height);
 
@@ -150,7 +167,7 @@ public:
             cl::Image2D i_y_image(
                 context_, 
                 CL_MEM_READ_WRITE, 
-                cl::ImageFormat{ CL_R, CL_FLOAT },
+                float_format_,
                 width,
                 height);
 
@@ -172,7 +189,7 @@ public:
             cl::Image2D structure_image(
                 context_, 
                 CL_MEM_READ_WRITE, 
-                cl::ImageFormat{ CL_RGBA, CL_FLOAT },
+                float_format_,
                 width,
                 height);
 
@@ -195,7 +212,7 @@ public:
             cl::Image2D response_image(
                 context_, 
                 CL_MEM_READ_WRITE, 
-                cl::ImageFormat{ CL_R, CL_FLOAT },
+                float_format_,
                 width,
                 height);
 
@@ -251,7 +268,7 @@ public:
             cl::Image2D corner_image(
                 context_,
                 CL_MEM_WRITE_ONLY | CL_MEM_USE_HOST_PTR,
-                cl::ImageFormat{ CL_R, CL_FLOAT },
+                float_format_,
                 width,
                 height,
                 image.stride(),
@@ -286,6 +303,7 @@ private:
     cl::Context context_;
     cl::Program program_;
     cl::CommandQueue queue_;
+    cl::ImageFormat float_format_;
     FilterKernel gaussian_;
 
     cl::Program CreateProgram(const std::string& source_file, const cl::Context& context)
